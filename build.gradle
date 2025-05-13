@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'io.papermc.paperweight.userdev' version '2.0.0-beta.16'
+    id "xyz.jpenilla.run-paper" version "2.3.1"
 }
 
 group = 'net.anatomyworld'
@@ -9,8 +10,15 @@ version = '1.0-SNAPSHOT'
 repositories {
     mavenCentral()
     maven {
-        name = "papermc"
+        name = "papermc-repo"
         url = "https://repo.papermc.io/repository/maven-public/"
+    }
+    maven {
+        name = "sonatype"
+        url = "https://oss.sonatype.org/content/groups/public/"
+    }
+    flatDir {
+        dirs 'libs'
     }
 }
 
@@ -39,4 +47,9 @@ processResources {
 
 jar {
     archiveBaseName.set("BiomeWorld")
+}
+
+// Add run server task
+tasks.named("runServer") {
+    minecraftVersion("1.21.3")
 }
