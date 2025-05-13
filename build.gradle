@@ -1,0 +1,42 @@
+plugins {
+    id 'java'
+    id 'io.papermc.paperweight.userdev' version '2.0.0-beta.16'
+}
+
+group = 'net.anatomyworld'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "papermc"
+        url = "https://repo.papermc.io/repository/maven-public/"
+    }
+}
+
+dependencies {
+
+    paperweight.paperDevBundle("1.21.3-R0.1-SNAPSHOT")
+}
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release.set(21)
+}
+
+processResources {
+    def props = [version: version]
+    inputs.properties props
+    filteringCharset = 'UTF-8'
+    filesMatching('plugin.yml') {
+        expand props
+    }
+}
+
+jar {
+    archiveBaseName.set("BiomeWorld")
+}
