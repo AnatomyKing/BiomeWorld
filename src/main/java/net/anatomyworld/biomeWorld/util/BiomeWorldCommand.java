@@ -8,9 +8,9 @@ import org.bukkit.command.TabCompleter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.io.File;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class BiomeWorldCommand implements CommandExecutor, TabCompleter {
 
@@ -19,31 +19,49 @@ public class BiomeWorldCommand implements CommandExecutor, TabCompleter {
     public BiomeWorldCommand(BiomeWorldMain plugin) {
         this.plugin = plugin;
 
-        // Register tab completer in constructor
         Objects.requireNonNull(plugin.getCommand("biomeworld")).setTabCompleter(this);
     }
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args) {
         if (args.length == 0) {
-            sender.sendMessage("§eUsage: /biomeworld reload");
+            sender.sendMessage("§eUsage: /biomeworld reload <profile>");
             return true;
         }
 
         if (args[0].equalsIgnoreCase("reload")) {
-            plugin.getBiomeParameterLoader().loadConfig();
-            sender.sendMessage("§a[BiomeWorld] Biome parameters reloaded successfully!");
+            if (args.length == 2) {
+                String profileName = args[1];
+                BiomeParameterLoader loader = new BiomeParameterLoader(plugin, profileName);
+                List<String> keys = new ArrayList<>(loader.getAllKeys());
+                if (keys.isEmpty()) {
+                    sender.sendMessage("§c[BiomeWorld] Failed to load or empty profile: " + profileName);
+                } else {
+                    sender.sendMessage("§a[BiomeWorld] Reloaded profile '" + profileName + "' with " + keys.size() + " biomes.");
+                }
+            } else {
+                sender.sendMessage("§cUsage: /biomeworld reload <profile>");
+            }
             return true;
         }
 
-        sender.sendMessage("§cUnknown subcommand. Usage: /biomeworld reload");
+        sender.sendMessage("§cUnknown subcommand. Usage: /biomeworld reload <profile>");
         return true;
     }
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         if (args.length == 1) {
-            return Collections.singletonList("reload");
+            return List.of("reload");
+        }
+
+        if (args.length == 2 && args[0].equalsIgnoreCase("reload")) {
+            File profilesDir = new File(plugin.getDataFolder(), "profiles");
+            if (profilesDir.exists() && profilesDir.isDirectory()) {
+                return Arrays.stream(Objects.requireNonNull(profilesDir.listFiles((dir, name) -> name.endsWith(".yml"))))
+                        .map(file -> file.getName().replace(".yml", ""))
+                        .collect(Collectors.toList());
+            }
         }
 
         return Collections.emptyList();

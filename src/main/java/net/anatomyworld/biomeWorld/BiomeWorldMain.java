@@ -17,16 +17,25 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
 import java.util.*;
 import java.util.logging.Level;
 
 public class BiomeWorldMain extends JavaPlugin {
 
-    private BiomeParameterLoader biomeParameterLoader;
-
     @Override
     public void onEnable() {
-        biomeParameterLoader = new BiomeParameterLoader(this);
+        // Ensure profiles directory and vanilla.yml exist
+        File profilesDir = new File(getDataFolder(), "profiles");
+        if (!profilesDir.exists()) {
+            profilesDir.mkdirs();
+        }
+
+        File vanilla = new File(profilesDir, "vanilla.yml");
+        if (!vanilla.exists()) {
+            saveResource("profiles/vanilla.yml", false);
+            getLogger().info("[BiomeWorld] Default profile 'vanilla.yml' extracted.");
+        }
 
         // Register command
         Objects.requireNonNull(getCommand("biomeworld")).setExecutor(new BiomeWorldCommand(this));
@@ -34,32 +43,42 @@ public class BiomeWorldMain extends JavaPlugin {
         getLogger().info("[BiomeWorld] Plugin enabled!");
     }
 
-    public BiomeParameterLoader getBiomeParameterLoader() {
-        return biomeParameterLoader;
-    }
-
     @Override
     public ChunkGenerator getDefaultWorldGenerator(@NotNull String worldName, @Nullable String id) {
         return new PassthroughChunkGenerator(getDefaultBiomeProvider(worldName, id));
     }
 
-    public BiomeProvider getDefaultBiomeProvider(@NotNull String worldName, String id) {
+    public BiomeProvider getDefaultBiomeProvider(@NotNull String worldName, @Nullable String id) {
         if (id == null || id.isEmpty()) {
-            getLogger().warning("[SBW] Biome ID is null or empty, using plains.");
+            getLogger().warning("[SBW] No ID provided. Using plains.");
             return new SingleBiomeProvider(org.bukkit.block.Biome.PLAINS);
         }
 
+        // === Profile-based loading ===
+        if (!id.contains(":") && !id.contains("[")) {
+            getLogger().info("[SBW] Treating ID as profile name: " + id);
+            BiomeParameterLoader profileLoader = new BiomeParameterLoader(this, id);
+            List<Holder<Biome>> biomes = getBiomesFromParameters(profileLoader);
+            if (biomes.isEmpty()) {
+                getLogger().warning("[SBW] No valid biomes found in profile: " + id);
+                return new SingleBiomeProvider(org.bukkit.block.Biome.PLAINS);
+            }
+            return new MultiBiomeProvider(biomes, profileLoader);
+        }
+
+        // === List of biomes ===
         if (id.contains("[")) {
             List<Holder<Biome>> biomeList = parseBiomeList(id);
             if (!biomeList.isEmpty()) {
                 getLogger().info("[SBW] Using MultiBiomeProvider with " + biomeList.size() + " biomes.");
-                return new MultiBiomeProvider(biomeList, getBiomeParameterLoader());
+                return new MultiBiomeProvider(biomeList, new BiomeParameterLoader(this, "vanilla")); // fallback
             }
 
             getLogger().warning("[SBW] No valid biomes parsed from list: " + id);
             return new SingleBiomeProvider(org.bukkit.block.Biome.PLAINS);
         }
 
+        // === Single biome by key ===
         NamespacedKey key = NamespacedKey.fromString(id);
         if (key == null) {
             getLogger().warning("[SBW] Invalid biome key: " + id);
@@ -74,7 +93,7 @@ public class BiomeWorldMain extends JavaPlugin {
 
         Optional<Biome> nms = getNmsBiome(key);
         if (nms.isPresent()) {
-            getLogger().info("[SBW] Using datapack (NMS) biome: " + key);
+            getLogger().info("[SBW] Using NMS biome (datapack): " + key);
             return new NmsBiomeProvider(nms.get());
         }
 
@@ -136,5 +155,25 @@ public class BiomeWorldMain extends JavaPlugin {
             getLogger().log(Level.WARNING, "[SBW] Failed to parse biome list from ID: " + id, e);
             return List.of();
         }
+    }
+
+    private List<Holder<Biome>> getBiomesFromParameters(BiomeParameterLoader loader) {
+        List<Holder<Biome>> biomes = new ArrayList<>();
+        MinecraftServer server = MinecraftServer.getServer();
+        var frozen = server.registryAccess();
+        var lookup = frozen.lookup(net.minecraft.core.registries.Registries.BIOME);
+        if (lookup.isEmpty()) return biomes;
+
+        for (String key : loader.getAllKeys()) {
+            try {
+                ResourceLocation resLoc = ResourceLocation.parse(key);
+                ResourceKey<Biome> biomeKey = ResourceKey.create(net.minecraft.core.registries.Registries.BIOME, resLoc);
+                lookup.get().get(biomeKey).ifPresent(biomes::add);
+            } catch (Exception e) {
+                getLogger().warning("[SBW] Invalid biome in profile: " + key);
+            }
+        }
+
+        return biomes;
     }
 }
