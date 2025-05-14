@@ -4,6 +4,8 @@
 
 scale: 1.0 # Scale factor: higher = bigger biomes, smoother transitions
 
+sea_level: 63
+
 biomes:
   minecraft:desert:
     temperature: 2.0

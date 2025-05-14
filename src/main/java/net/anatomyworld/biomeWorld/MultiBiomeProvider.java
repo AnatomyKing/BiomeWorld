@@ -143,7 +143,7 @@ public class MultiBiomeProvider extends BiomeProvider {
         double eros = sampleErosion(x, z);
         double weird = sampleWeirdness(x, z);
 
-        double base = 63.0;
+        double base = parameterLoader.getSeaLevel();
         double contOffset = cont * 40.0;
         double weirdOffset = weird * 30.0;
         double erosOffset = -eros * 15.0;

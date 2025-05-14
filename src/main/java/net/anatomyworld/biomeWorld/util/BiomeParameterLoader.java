@@ -13,7 +13,9 @@ public class BiomeParameterLoader {
 
     private final Plugin plugin;
     private final Map<String, Map<String, Double>> biomeParameters = new HashMap<>();
+
     private double scale = 1.0;
+    private int seaLevel = 63; // Default vanilla sea level
 
     public BiomeParameterLoader(Plugin plugin, String profileName) {
         this.plugin = plugin;
@@ -30,7 +32,9 @@ public class BiomeParameterLoader {
 
         biomeParameters.clear();
         YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+
         this.scale = config.getDouble("scale", 1.0);
+        this.seaLevel = config.getInt("sea_level", 63); // ✅ NEW: configurable sea level
 
         ConfigurationSection biomesSection = config.getConfigurationSection("biomes");
         if (biomesSection == null) {
@@ -49,7 +53,7 @@ public class BiomeParameterLoader {
             biomeParameters.put(biomeKey, params);
         }
 
-        plugin.getLogger().info("[BiomeWorld] Loaded profile '" + profileName + "' with " + biomeParameters.size() + " biomes.");
+        plugin.getLogger().info("[BiomeWorld] Loaded profile '" + profileName + "' with " + biomeParameters.size() + " biomes and sea level: " + seaLevel);
     }
 
     public Map<String, Double> getParameters(String biomeKey) {
@@ -62,5 +66,9 @@ public class BiomeParameterLoader {
 
     public double getScale() {
         return this.scale;
+    }
+
+    public int getSeaLevel() {
+        return this.seaLevel;
     }
 }
