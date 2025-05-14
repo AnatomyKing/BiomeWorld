@@ -4,6 +4,7 @@ import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import net.anatomyworld.biomeWorld.util.BiomeParameterLoader;
 import net.anatomyworld.biomeWorld.util.BiomeWorldCommand;
+import net.anatomyworld.biomeWorld.util.CustomNoiseSettingsRegistry;
 import net.anatomyworld.biomeWorld.util.PassthroughChunkGenerator;
 import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceKey;
@@ -22,6 +23,26 @@ import java.util.*;
 import java.util.logging.Level;
 
 public class BiomeWorldMain extends JavaPlugin {
+
+
+    @Override
+    public void onLoad() {
+        // ✅ Register all noise settings BEFORE the registry freezes
+        File profilesDir = new File(getDataFolder(), "profiles");
+        if (!profilesDir.exists()) return;
+
+        File[] files = profilesDir.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files == null) return;
+
+        for (File file : files) {
+            String profile = file.getName().replace(".yml", "");
+            BiomeParameterLoader loader = new BiomeParameterLoader(this, profile);
+            CustomNoiseSettingsRegistry.registerProfileNoiseSettings(loader.getProfileName(), loader.getSeaLevel());
+            getLogger().info("[BiomeWorld] Registered noise settings: " + profile);
+        }
+    }
+
+
 
     @Override
     public void onEnable() {
@@ -45,8 +66,23 @@ public class BiomeWorldMain extends JavaPlugin {
 
     @Override
     public ChunkGenerator getDefaultWorldGenerator(@NotNull String worldName, @Nullable String id) {
-        return new PassthroughChunkGenerator(getDefaultBiomeProvider(worldName, id));
+        // === Profile-based ===
+        if (id != null && !id.isEmpty() && !id.contains(":") && !id.contains("[")) {
+            BiomeParameterLoader profileLoader = new BiomeParameterLoader(this, id);
+            List<Holder<Biome>> biomes = getBiomesFromParameters(profileLoader);
+
+            BiomeProvider provider = biomes.isEmpty()
+                    ? new SingleBiomeProvider(org.bukkit.block.Biome.PLAINS)
+                    : new MultiBiomeProvider(biomes, profileLoader);
+
+            return new PassthroughChunkGenerator(provider, profileLoader);
+        }
+
+        // === Fallback ===
+        BiomeParameterLoader fallback = new BiomeParameterLoader(this, "vanilla");
+        return new PassthroughChunkGenerator(getDefaultBiomeProvider(worldName, id), fallback);
     }
+
 
     public BiomeProvider getDefaultBiomeProvider(@NotNull String worldName, @Nullable String id) {
         if (id == null || id.isEmpty()) {

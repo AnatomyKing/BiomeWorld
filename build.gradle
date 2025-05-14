@@ -30,9 +30,7 @@ sourceSets {
     }
 }
 
-
 dependencies {
-
     paperweight.paperDevBundle("1.21.3-R0.1-SNAPSHOT")
 }
 
@@ -45,7 +43,10 @@ tasks.withType(JavaCompile).configureEach {
     options.release.set(21)
 }
 
-processResources {
+
+tasks.named('processResources', Copy).configure {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
     def props = [version: version]
     inputs.properties props
     filteringCharset = 'UTF-8'
@@ -53,6 +54,11 @@ processResources {
         expand props
     }
 }
+
+// If you also want all Copy tasks to exclude duplicates by default:
+ tasks.withType(Copy).configureEach {
+   duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+ }
 
 jar {
     archiveBaseName.set("BiomeWorld")
