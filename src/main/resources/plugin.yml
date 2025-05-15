@@ -1,14 +1,16 @@
 name: BiomeWorld
-version: 1.0-SNAPSHOT
+version: 1.0
 main: net.anatomyworld.biomeWorld.BiomeWorldMain
 api-version: '1.21'
 description: Biome World Generator plugin that supports both vanilla and datapack biomes
 load: STARTUP
+
 commands:
   biomeworld:
     description: BiomeWorld plugin commands
     usage: /<command> reload
     permission: biomeworld.use
+
 permissions:
   biomeworld.use:
     description: Allows use of BiomeWorld commands

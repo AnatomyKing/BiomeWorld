@@ -44,6 +44,13 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 
+processResources {
+    from(sourceSets.main.resources.srcDirs) {
+        include 'plugin.yml'
+        include 'paper-plugin.yml'
+    }
+}
+
 tasks.named('processResources', Copy).configure {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 

@@ -1,0 +1,6 @@
+name: BiomeWorld
+version: 1.0
+description: Adds profile-based biome generation
+main: net.anatomyworld.biomeWorld.BiomeWorldMain
+bootstrapper: net.anatomyworld.biomeWorld.BiomeWorldBootstrap
+api-version: 1.21

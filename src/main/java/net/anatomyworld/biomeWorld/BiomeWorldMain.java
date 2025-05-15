@@ -2,54 +2,43 @@ package net.anatomyworld.biomeWorld;
 
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
-import net.anatomyworld.biomeWorld.util.BiomeParameterLoader;
-import net.anatomyworld.biomeWorld.util.BiomeWorldCommand;
-import net.anatomyworld.biomeWorld.util.CustomNoiseSettingsRegistry;
-import net.anatomyworld.biomeWorld.util.PassthroughChunkGenerator;
+import net.anatomyworld.biomeWorld.util.*;
+
 import net.minecraft.core.Holder;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.biome.Biome;
 import org.bukkit.NamespacedKey;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.generator.BiomeProvider;
 import org.bukkit.generator.ChunkGenerator;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
+import java.lang.reflect.Constructor;
 import java.util.*;
 import java.util.logging.Level;
 
 public class BiomeWorldMain extends JavaPlugin {
 
-
     @Override
     public void onLoad() {
-        // ✅ Register all noise settings BEFORE the registry freezes
-        File profilesDir = new File(getDataFolder(), "profiles");
-        if (!profilesDir.exists()) return;
-
-        File[] files = profilesDir.listFiles((dir, name) -> name.endsWith(".yml"));
-        if (files == null) return;
-
-        for (File file : files) {
-            String profile = file.getName().replace(".yml", "");
-            BiomeParameterLoader loader = new BiomeParameterLoader(this, profile);
-            CustomNoiseSettingsRegistry.registerProfileNoiseSettings(loader.getProfileName(), loader.getSeaLevel());
-            getLogger().info("[BiomeWorld] Registered noise settings: " + profile);
-        }
+        getLogger().info("[BiomeWorld] onLoad — nothing to do (all profiles registered in bootstrap)");
     }
-
 
 
     @Override
     public void onEnable() {
-        // Ensure profiles directory and vanilla.yml exist
+        /* 1 ─ Ensure the default profile exists ------------------------ */
         File profilesDir = new File(getDataFolder(), "profiles");
-        if (!profilesDir.exists()) {
-            profilesDir.mkdirs();
+        if (!profilesDir.exists() && !profilesDir.mkdirs()) {
+            getLogger().severe("[BiomeWorld] Cannot create profiles directory!");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
         }
 
         File vanilla = new File(profilesDir, "vanilla.yml");
@@ -58,11 +47,37 @@ public class BiomeWorldMain extends JavaPlugin {
             getLogger().info("[BiomeWorld] Default profile 'vanilla.yml' extracted.");
         }
 
-        // Register command
-        Objects.requireNonNull(getCommand("biomeworld")).setExecutor(new BiomeWorldCommand(this));
+        /* 2 ─ Manually register /biomeworld ---------------------------- */
+        try {
+            Constructor<PluginCommand> ctor =
+                    PluginCommand.class.getDeclaredConstructor(String.class, Plugin.class);
+            ctor.setAccessible(true);
 
+            PluginCommand cmd = ctor.newInstance("biomeworld", this);
+            cmd.setDescription("BiomeWorld plugin commands");
+            cmd.setUsage("/biomeworld reload <profile>");
+            cmd.setPermission("biomeworld.use");
+
+            // register first (so getCommand returns non-null)
+            String namespace = getName().toLowerCase(Locale.ROOT);
+            getServer().getCommandMap().register(namespace, cmd);
+
+            // hook up executor and tab-completer
+            BiomeWorldCommand executor = new BiomeWorldCommand(this);
+            cmd.setExecutor(executor);
+            cmd.setTabCompleter(executor);
+
+        } catch (ReflectiveOperationException | IllegalStateException e) {
+            getLogger().log(Level.SEVERE, "[BiomeWorld] Failed to register /biomeworld command", e);
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+
+        /* 3 ─ Done ----------------------------------------------------- */
         getLogger().info("[BiomeWorld] Plugin enabled!");
     }
+
+
 
     @Override
     public ChunkGenerator getDefaultWorldGenerator(@NotNull String worldName, @Nullable String id) {
