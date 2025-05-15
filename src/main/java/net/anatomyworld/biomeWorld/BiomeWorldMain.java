@@ -27,27 +27,41 @@ public class BiomeWorldMain extends JavaPlugin {
 
     @Override
     public void onLoad() {
-        getLogger().info("[BiomeWorld] onLoad — nothing to do (all profiles registered in bootstrap)");
+        getLogger().info("[BiomeWorld] onLoad — registering noise settings");
+
+        ProfileCache.all().forEach((name, cachedLoader) -> {
+            // small re-read now that file definitely exists
+            BiomeParameterLoader loader = new BiomeParameterLoader(this, name);
+            ProfileCache.put(name, loader);          // keep cache fresh
+
+            try {
+                CustomNoiseSettingsRegistry.registerProfileNoiseSettings(
+                        name, loader.getSeaLevel());
+            } catch (Exception ex) {
+                getLogger().warning("[BiomeWorld] noise settings for "
+                        + name + " failed: " + ex.getMessage());
+            }
+        });
     }
 
-
+    /* ==================================================================
+       2)  ENABLE – command registration + vanilla.yml fallback
+       =================================================================*/
     @Override
     public void onEnable() {
-        /* 1 ─ Ensure the default profile exists ------------------------ */
         File profilesDir = new File(getDataFolder(), "profiles");
         if (!profilesDir.exists() && !profilesDir.mkdirs()) {
             getLogger().severe("[BiomeWorld] Cannot create profiles directory!");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-
         File vanilla = new File(profilesDir, "vanilla.yml");
         if (!vanilla.exists()) {
             saveResource("profiles/vanilla.yml", false);
             getLogger().info("[BiomeWorld] Default profile 'vanilla.yml' extracted.");
         }
 
-        /* 2 ─ Manually register /biomeworld ---------------------------- */
+        /* manual /biomeworld command ---------------------------------- */
         try {
             Constructor<PluginCommand> ctor =
                     PluginCommand.class.getDeclaredConstructor(String.class, Plugin.class);
@@ -58,24 +72,21 @@ public class BiomeWorldMain extends JavaPlugin {
             cmd.setUsage("/biomeworld reload <profile>");
             cmd.setPermission("biomeworld.use");
 
-            // register first (so getCommand returns non-null)
-            String namespace = getName().toLowerCase(Locale.ROOT);
-            getServer().getCommandMap().register(namespace, cmd);
+            getServer().getCommandMap().register(getName().toLowerCase(Locale.ROOT), cmd);
 
-            // hook up executor and tab-completer
-            BiomeWorldCommand executor = new BiomeWorldCommand(this);
-            cmd.setExecutor(executor);
-            cmd.setTabCompleter(executor);
+            BiomeWorldCommand exec = new BiomeWorldCommand(this);
+            cmd.setExecutor(exec);
+            cmd.setTabCompleter(exec);
 
         } catch (ReflectiveOperationException | IllegalStateException e) {
-            getLogger().log(Level.SEVERE, "[BiomeWorld] Failed to register /biomeworld command", e);
+            getLogger().log(Level.SEVERE, "[BiomeWorld] Failed to register /biomeworld", e);
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
 
-        /* 3 ─ Done ----------------------------------------------------- */
         getLogger().info("[BiomeWorld] Plugin enabled!");
     }
+
 
 
 

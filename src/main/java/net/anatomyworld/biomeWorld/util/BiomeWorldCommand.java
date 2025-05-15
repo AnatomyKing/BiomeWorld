@@ -9,18 +9,21 @@ import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Reload command – now *only* refreshes YAML + cache.  The registry
+ * entry itself cannot be changed once the server is running.
+ */
 public class BiomeWorldCommand implements CommandExecutor, TabCompleter {
 
     private final BiomeWorldMain plugin;
 
     public BiomeWorldCommand(BiomeWorldMain plugin) {
         this.plugin = plugin;
-        // don’t crash if the command is not yet registered
         Optional.ofNullable(plugin.getCommand("biomeworld"))
                 .ifPresent(c -> c.setTabCompleter(this));
     }
 
-    /* ------------------ Command logic (unchanged) ------------------- */
+    /* ------------------------------------------------------------------ */
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender,
@@ -37,17 +40,22 @@ public class BiomeWorldCommand implements CommandExecutor, TabCompleter {
             if (args.length == 2) {
                 String profileName = args[1];
 
-                BiomeParameterLoader loader = new BiomeParameterLoader(plugin, profileName);
-                CustomNoiseSettingsRegistry.registerProfileNoiseSettings(
-                        loader.getProfileName(), loader.getSeaLevel());
+                /* 1) read YAML fresh ------------------------------------ */
+                BiomeParameterLoader loader =
+                        new BiomeParameterLoader(plugin, profileName);
 
-                List<String> keys = new ArrayList<>(loader.getAllKeys());
-                if (keys.isEmpty()) {
-                    sender.sendMessage("§c[BiomeWorld] Failed to load or empty profile: " + profileName);
+                /* 2) update in-memory cache for next server start ------- */
+                ProfileCache.put(profileName, loader);
+
+                /* 3) user feedback -------------------------------------- */
+                int size = loader.getAllKeys().size();
+                if (size == 0) {
+                    sender.sendMessage("§c[BiomeWorld] Failed to load or empty profile: "
+                            + profileName);
                 } else {
-                    sender.sendMessage("§a[BiomeWorld] Reloaded profile '" + profileName
-                            + "' with " + keys.size() + " biomes.");
-                    sender.sendMessage("§7Sea level set to: " + loader.getSeaLevel());
+                    sender.sendMessage("§a[BiomeWorld] Reloaded profile '"
+                            + profileName + "' with " + size + " biomes.");
+                    sender.sendMessage("§7Sea level (next start): " + loader.getSeaLevel());
                 }
             } else {
                 sender.sendMessage("§cUsage: /biomeworld reload <profile>");
@@ -59,21 +67,20 @@ public class BiomeWorldCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    /* ------------------------------------------------------------------ */
+
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender,
                                                 @NotNull Command command,
                                                 @NotNull String alias,
                                                 @NotNull String[] args) {
-
-        if (args.length == 1) {
-            return List.of("reload");
-        }
+        if (args.length == 1) return List.of("reload");
 
         if (args.length == 2 && args[0].equalsIgnoreCase("reload")) {
-            File profilesDir = new File(plugin.getDataFolder(), "profiles");
-            if (profilesDir.exists() && profilesDir.isDirectory()) {
+            File dir = new File(plugin.getDataFolder(), "profiles");
+            if (dir.exists() && dir.isDirectory()) {
                 return Arrays.stream(Objects.requireNonNull(
-                                profilesDir.listFiles((dir, name) -> name.endsWith(".yml"))))
+                                dir.listFiles((d, n) -> n.endsWith(".yml"))))
                         .map(f -> f.getName().replace(".yml", ""))
                         .collect(Collectors.toList());
             }
